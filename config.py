@@ -65,3 +65,14 @@ def get_int(section, key, default=0):
     except ValueError:
         logging.warning(f"Invalid integer for [{section}] {key}, using default: {default}")
         return default
+
+def get_float(section, key, default=0.0):
+    """Return a float value from config."""
+    if CONFIG is None:
+        raise RuntimeError("Config not loaded. Call load_config() first.")
+    
+    try:
+        return CONFIG.getfloat(section, key, fallback=default)
+    except ValueError:
+        logging.warning(f"Invalid float for [{section}] {key}, using default: {default}")
+        return default

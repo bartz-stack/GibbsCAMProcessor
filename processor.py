@@ -73,6 +73,39 @@ def process_ncf_file(ncf_file: Path, template: Path, out_dir: Path,
     # NEW WORKFLOW: If screenshots enabled, capture FIRST then create Excel
     if enable_screenshots:
         logging.info("Opening screenshot GUI before Excel creation...")
+        
+        # BRING GIBBSCAM TO FOREGROUND FIRST
+        try:
+            import win32gui
+            import win32process
+            import win32con
+            import psutil
+            
+            def find_virtual_exe():
+                virtual_windows = []
+                def callback(hwnd, _):
+                    if win32gui.IsWindowVisible(hwnd):
+                        try:
+                            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                            process = psutil.Process(pid)
+                            if 'virtual.exe' in process.name().lower():
+                                virtual_windows.append(hwnd)
+                        except:
+                            pass
+                win32gui.EnumWindows(callback, None)
+                return virtual_windows
+            
+            virtual_windows = find_virtual_exe()
+            if virtual_windows:
+                hwnd = virtual_windows[0]
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                win32gui.SetForegroundWindow(hwnd)
+                logging.info("✓ Brought GibbsCAM to foreground before screenshot GUI")
+                time.sleep(0.3)
+        except Exception as e:
+            logging.warning(f"Could not bring GibbsCAM to foreground: {e}")
+        
         try:
             try:
                 from . import screenshot_gui
@@ -85,10 +118,10 @@ def process_ncf_file(ncf_file: Path, template: Path, out_dir: Path,
             )
             
             if not result:
-                logging.info("Screenshot capture cancelled or failed")
+                logging.error("Screenshot capture cancelled or failed")
                 return False
             
-            logging.info("âœ“ Screenshots captured and Excel created successfully")
+            logging.info("✓ Screenshots captured and Excel created successfully")
             return True
             
         except Exception as e:
@@ -107,7 +140,7 @@ def process_ncf_file(ncf_file: Path, template: Path, out_dir: Path,
             logging.error(f"Failed to create Excel report for {ncf_file.name}")
             return False
         
-        logging.info(f"âœ“ Successfully processed: {ncf_file.name}")
+        logging.info(f"✓ Successfully processed: {ncf_file.name}")
         return True
 
 
@@ -175,7 +208,7 @@ def main():
                 logging.info(f"  - {candidate}")
                 if candidate.exists():
                     icon_path = candidate
-                    logging.info(f"âœ“ Found icon: {icon_path}")
+                    logging.info(f"✓ Found icon: {icon_path}")
                     break
             
             # If not found locally, try network path from config
@@ -186,7 +219,7 @@ def main():
                     
                     if network_icon.exists():
                         icon_path = network_icon
-                        logging.info(f"âœ“ Using network icon: {icon_path}")
+                        logging.info(f"✓ Using network icon: {icon_path}")
                 except Exception as e:
                     logging.debug(f"Could not load network icon: {e}")
         
@@ -212,7 +245,6 @@ def main():
     exit_delay = config.get_int("BEHAVIOR", "EXIT_DELAY", 2)
     force_gui = config.get_flag("BEHAVIOR", "FORCE_GUI", False)
     show_gui_on_success = config.get_flag("BEHAVIOR", "SHOW_GUI_ON_SUCCESS", False)
-    show_gui_on_cancel = config.get_flag("BEHAVIOR", "SHOW_GUI_ON_CANCEL", False)
     excel_visible = config.get_flag("BEHAVIOR", "EXCEL_VISIBLE", True)
     overwrite_prompt = config.get_flag("BEHAVIOR", "OVERWRITE_PROMPT", True)
     force_winotify = config.get_flag("BEHAVIOR", "FORCE_WINOTIFY", False)
@@ -243,7 +275,7 @@ def main():
     # Create output directories if needed
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
-        logging.info(f"âœ“ Output directory ready: {out_dir}")
+        logging.info(f"✓ Output directory ready: {out_dir}")
     except Exception as e:
         logging.error(f"Could not create output directory {out_dir}: {e}")
         time.sleep(exit_delay)
@@ -251,7 +283,7 @@ def main():
     
     try:
         temp_csv_dir.mkdir(parents=True, exist_ok=True)
-        logging.info(f"âœ“ Temp CSV directory ready: {temp_csv_dir}")
+        logging.info(f"✓ Temp CSV directory ready: {temp_csv_dir}")
     except Exception as e:
         logging.error(f"Could not create temp CSV directory {temp_csv_dir}: {e}")
         time.sleep(exit_delay)
@@ -320,18 +352,12 @@ def main():
     # Process the single detected file
     logging.info(f"Processing detected file: {ncf_file.name}")
     processed_count = 0
-    user_cancelled = False
     
     try:
         if process_ncf_file(ncf_file, template, out_dir, temp_csv_dir,
                           sheet_name, overwrite_prompt, excel_visible,
                           enable_screenshots):
             processed_count = 1
-        else:
-            # Check if failure was due to user cancelling screenshot capture
-            if enable_screenshots:
-                user_cancelled = True
-                logging.info('User cancelled screenshot capture')
     except Exception as e:
         logging.error(f"Unexpected error processing {ncf_file.name}: {e}")
         logging.exception("Full traceback:")
@@ -339,11 +365,9 @@ def main():
     # Log summary
     logging.info("=" * 60)
     if processed_count > 0:
-        logging.info(f"âœ“ Successfully processed: {ncf_file.name}")
-    elif user_cancelled:
-        logging.warning(f"⚠ Cancelled: {ncf_file.name}")
+        logging.info(f"✓ Successfully processed: {ncf_file.name}")
     else:
-        logging.error(f"âœ— Failed to process: {ncf_file.name}")
+        logging.error(f"✗ Failed to process: {ncf_file.name}")
     logging.info("=" * 60)
 
     # Show completion notification
@@ -359,8 +383,6 @@ def main():
     # Show GUI if needed
     if force_gui:
         notifications.show_error_gui(log_file, "GibbsCAM Processor - Log")
-    elif user_cancelled and show_gui_on_cancel:
-        notifications.show_error_gui(log_file, "GibbsCAM Processor - Cancelled")
     elif logging_setup.has_errors():
         notifications.show_error_gui(log_file, "GibbsCAM Processor - Errors Detected")
     elif show_gui_on_success and processed_count > 0:

@@ -134,19 +134,11 @@ def map_csv_to_excel(csv_path: Path, template_path: Path, output_path: Path,
             excel_app = win32.Dispatch("Excel.Application")
             logging.debug("Created new Excel instance")
         
+        # CRITICAL: Keep Excel hidden from the start
+        excel_app.Visible = False
         excel_app.DisplayAlerts = False
         excel_app.ScreenUpdating = False
-        
-        # Close output file if already open
-        for i in range(1, excel_app.Workbooks.Count + 1):
-            try:
-                wb_open = excel_app.Workbooks(i)
-                if Path(wb_open.FullName).resolve() == output_path.resolve():
-                    logging.info(f"Closing already-open file: {output_path.name}")
-                    wb_open.Close(SaveChanges=False)
-                    break
-            except:
-                pass
+        logging.debug("Excel set to hidden mode from start")
         
         # Open template
         logging.info(f"Opening template: {template_path}")
@@ -277,7 +269,24 @@ def map_csv_to_excel(csv_path: Path, template_path: Path, output_path: Path,
             # Save the workbook
             wb.SaveAs(str(output_path.absolute()))
             logging.info(f"✓ Excel file saved with all images preserved")
+            
+            # Close the workbook after saving (whether screenshots enabled or not)
+            # The screenshot GUI will reopen it if needed
+            try:
+                wb.Close(SaveChanges=False)
+                logging.debug("Closed workbook after saving")
+                wb = None  # Mark as closed
+            except:
+                pass  # Already closed or disconnected
+            
+            # For the NEW workflow (ScreenshotGUIWithExcelCreation):
+            # Just return the path - screenshot GUI handles everything else
+            if not enable_screenshots and not open_excel:
+                # Clean exit - file is saved and closed
+                return output_path
+                
         except com_error as e:
+            logging.error(f"Error saving Excel file: {e}")
             logging.error(f"Error saving Excel file: {e}")
             
             # Try alternative: Save to temp location then copy
@@ -299,11 +308,17 @@ def map_csv_to_excel(csv_path: Path, template_path: Path, output_path: Path,
                 shutil.move(str(temp_output), str(output_path))
                 logging.info(f"✓ Excel file saved via temp file")
                 
+                # Mark workbook as closed
+                wb = None
+                
+                # Return early if no screenshots needed
+                if not enable_screenshots:
+                    return output_path
+                
                 # Reopen for screenshot GUI if needed
                 if enable_screenshots:
                     wb = excel_app.Workbooks.Open(str(output_path.absolute()))
-                else:
-                    return output_path
+                    ws = wb.Worksheets(sheet_name)
                     
             except Exception as e2:
                 logging.error(f"Alternative save method also failed: {e2}")
@@ -313,89 +328,97 @@ def map_csv_to_excel(csv_path: Path, template_path: Path, output_path: Path,
                     pass
                 return None
 
-        # === SCREENSHOT GUI INTEGRATION ===
+        # === SCREENSHOT GUI INTEGRATION (OLD WORKFLOW ONLY) ===
+        # This section is for the OLD workflow where screenshots are added AFTER Excel is created
+        # The NEW workflow (ScreenshotGUIWithExcelCreation) doesn't use this
         if enable_screenshots and screenshot_gui:
-            logging.info("Opening screenshot capture GUI...")
+            logging.info("Opening screenshot capture GUI (OLD workflow)...")
+            
+            # Reopen workbook if it was closed
+            if wb is None:
+                try:
+                    wb = excel_app.Workbooks.Open(str(output_path.absolute()))
+                    ws = wb.Worksheets(sheet_name)
+                    logging.info("Reopened workbook for screenshot GUI")
+                except Exception as e:
+                    logging.error(f"Could not reopen workbook: {e}")
+                    return output_path
             
             # Make sure we have a valid workbook reference
             try:
-                # Test if workbook is still valid
                 _ = wb.Name
             except:
-                # Workbook was closed, reopen it
-                logging.info("Reopening workbook for screenshot GUI")
+                logging.info("Reopening workbook for screenshot GUI (was closed)")
                 wb = excel_app.Workbooks.Open(str(output_path.absolute()))
                 ws = wb.Worksheets(sheet_name)
             
-            # DON'T bring Excel to foreground yet - let GUI open first
-            # Excel will be brought to foreground AND MAXIMIZED when user clicks "Done"
-            
-            # Open screenshot GUI (it will handle Excel visibility and maximization)
+            # Open screenshot GUI
             try:
                 screenshot_gui.open_screenshot_gui(wb, sheet_name)
                 logging.info("✓ Screenshot GUI completed")
                 
-                # Save workbook after screenshots
                 try:
                     wb.Save()
                     logging.info("✓ Workbook saved with screenshots")
                 except com_error as e:
                     logging.error(f"Error saving after screenshots: {e}")
                 
-                # Screenshot GUI already handled Excel visibility/maximization
-                # Return immediately - don't run "Keep Excel visible" section
+                # Screenshot GUI handled everything, return
                 return output_path
                     
             except Exception as e:
                 logging.error(f"Error with screenshot GUI: {e}")
                 logging.exception("Full traceback:")
-                return None  # Return on error too
+                return None
         elif enable_screenshots and not screenshot_gui:
             logging.warning("Screenshots enabled but screenshot_gui module not available")
+            return output_path
 
-        # Keep Excel visible or close it
+        # Keep Excel visible (OLD workflow only - when open_excel=True)
         if open_excel:
-            if not enable_screenshots:
-                # Normal mode - show and maximize Excel
-                excel_app.Visible = True
-                excel_app.ScreenUpdating = True
-                
-                # Activate the worksheet
+            if wb is None:
+                # Reopen if needed
+                wb = excel_app.Workbooks.Open(str(output_path.absolute()))
+                ws = wb.Worksheets(sheet_name)
+            
+            # Show and maximize Excel
+            excel_app.Visible = True
+            excel_app.ScreenUpdating = True
+            
+            try:
+                ws.Activate()
+            except:
+                pass
+            
+            time.sleep(0.2)
+            try:
+                import win32gui
+                import win32con
+                hwnd = excel_app.Hwnd
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                time.sleep(0.1)
+                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+                win32gui.SetForegroundWindow(hwnd)
+                logging.info("✓ Excel maximized and brought to foreground")
+            except Exception as e:
+                logging.warning(f"Could not maximize Excel: {e}")
+            
+            logging.info("✓ Excel opened and visible")
+        else:
+            # Close workbook if it's still open and we don't need to show it
+            if wb is not None:
                 try:
-                    ws.Activate()
+                    wb.Close(SaveChanges=False)
+                    logging.info("✓ Excel workbook closed")
                 except:
                     pass
-                
-                # Maximize Excel
-                time.sleep(0.2)
-                try:
-                    import win32gui
-                    import win32con
-                    hwnd = excel_app.Hwnd
-                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                    time.sleep(0.1)
-                    win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-                    win32gui.SetForegroundWindow(hwnd)
-                    logging.info("✓ Excel maximized and brought to foreground")
-                except Exception as e:
-                    logging.warning(f"Could not maximize Excel: {e}")
-                
-                logging.info("✓ Excel opened and visible")
-            else:
-                # Screenshot mode - keep Excel HIDDEN in background
-                excel_app.Visible = False  # Keep hidden
-                excel_app.ScreenUpdating = False  # Keep screen updating off
-                logging.info("✓ Excel kept hidden (screenshot GUI will show it when done)")
-        else:
-            wb.Close(SaveChanges=False)
-            logging.info("✓ Excel workbook closed")
 
     except Exception as e:
         logging.error(f"Excel mapping error: {e}")
         logging.exception("Full traceback:")
         
         # Cleanup on error
-        if wb:
+        if wb is not None:
             try:
                 wb.Close(SaveChanges=False)
             except:

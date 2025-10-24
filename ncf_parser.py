@@ -37,22 +37,12 @@ def extract_coordinates(ncf_file: Path, csv_file: Path) -> Optional[Path]:
         Path to CSV file on success, None on failure
     """
     
-    # Load G10 regex pattern from config (primary method)
-    try:
-        g10_pattern_str = config.CONFIG["REGEX"]["G10_L2"]
-        if g10_pattern_str and g10_pattern_str.strip():
-            g10_pattern = re.compile(g10_pattern_str, re.IGNORECASE)
-            logging.info("✓ Using G10 L2 pattern from config")
-        else:
-            g10_pattern = None
-            logging.info("G10 L2 pattern disabled in config - will use VZOF only")
-    except KeyError:
-        # Fallback to hardcoded pattern if not in config
-        g10_pattern = re.compile(
-            r'G10\s+L2\s+P(\d+)\s+X(-?\d*\.?\d+)\s+Y(-?\d*\.?\d+)\s+Z(-?\d*\.?\d+)',
-            re.IGNORECASE
-        )
-        logging.info("Using default G10 L2 pattern (not found in config)")
+    # Regex pattern for G10 L2 lines
+    # Matches: G90 G10 L2 P1 X-64.7500 Y-24.7475 Z-21.9675
+    g10_pattern = re.compile(
+        r'G10\s+L2\s+P(\d+)\s+X(-?\d*\.?\d+)\s+Y(-?\d*\.?\d+)\s+Z(-?\d*\.?\d+)',
+        re.IGNORECASE
+    )
     
     # Load VZOF regex patterns from config as backup
     try:
@@ -148,11 +138,11 @@ def extract_coordinates(ncf_file: Path, csv_file: Path) -> Optional[Path]:
 
     # Determine which data source to use
     if g10_data:
-        logging.info(f"âœ“ Found {len(g10_data)} G10 L2 work offset(s)")
+        logging.info(f"✓ Found {len(g10_data)} G10 L2 work offset(s)")
         coordinate_source = g10_data
         source_name = "G10 L2"
     elif vzof_data:
-        logging.info(f"âœ“ Found {len(vzof_data)} VZOF offset(s)")
+        logging.info(f"✓ Found {len(vzof_data)} VZOF offset(s)")
         coordinate_source = vzof_data
         source_name = "VZOF"
     else:
@@ -193,7 +183,7 @@ def extract_coordinates(ncf_file: Path, csv_file: Path) -> Optional[Path]:
             # Rows 3-6: coordinate data (G54, G55, G56, G57)
             writer.writerows(coordinates)
 
-        logging.info(f"âœ“ CSV written: {csv_file}")
+        logging.info(f"✓ CSV written: {csv_file}")
         logging.info(f"  Source: {source_name}")
         logging.info(f"  Work offsets: {len(coordinates)}")
         return csv_file
