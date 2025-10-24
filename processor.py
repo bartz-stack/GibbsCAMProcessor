@@ -12,16 +12,14 @@ from pathlib import Path
 from typing import List
 
 # Support both package and standalone imports
-try:
-    from . import config, logging_setup, notifications, ncf_parser, excel_mapper, window_detector
-except ImportError:
-    # Standalone mode - import directly
-    import config
-    import logging_setup
-    import notifications
-    import ncf_parser
-    import excel_mapper
-    import window_detector
+# Try absolute imports FIRST (works better with PyInstaller)
+
+import config
+import logging_setup
+import notifications
+import ncf_parser
+import excel_mapper
+import window_detector
 
 
 def process_ncf_file(ncf_file: Path, template: Path, out_dir: Path, 
@@ -108,9 +106,9 @@ def process_ncf_file(ncf_file: Path, template: Path, out_dir: Path,
         
         try:
             try:
-                from . import screenshot_gui
-            except ImportError:
                 import screenshot_gui
+            except ImportError:
+                from . import screenshot_gui
             
             # This will open GUI, let user capture, then create Excel when Done clicked
             result = screenshot_gui.capture_then_create_excel(

@@ -31,11 +31,11 @@ except ImportError:
 
 # Import our modular components
 try:
-    from .screenshot_colors import ModernColors
-    from .screenshot_capture import ScreenshotCapture
-except ImportError:
     from screenshot_colors import ModernColors
     from screenshot_capture import ScreenshotCapture
+except ImportError:
+    from .screenshot_colors import ModernColors
+    from .screenshot_capture import ScreenshotCapture
 
 
 # ============================================================================

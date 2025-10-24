@@ -322,36 +322,3 @@ def confirm_overwrite(filepath) -> bool:
     except Exception as e:
         logging.warning(f"Error showing overwrite dialog: {e}")
         return True  # Default to yes on error
-
-
-# Standalone test
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    
-    print("\n" + "="*70)
-    print("TESTING NOTIFICATIONS MODULE")
-    print("="*70)
-    
-    if not WINDOWS_TOASTS_AVAILABLE:
-        print("\nERROR: windows-toasts not installed")
-        print("Install with: pip install windows-toasts")
-        exit(1)
-    
-    # Test 1: Toast without icon
-    print("\n[Test 1] Sending toast without icon...")
-    show_toast("Test Notification", "This is a test without icon")
-    
-    import time
-    time.sleep(2)
-    
-    # Test 2: Toast with icon
-    print("\n[Test 2] Sending toast with icon...")
-    icon = Path("GCP_clau/Gibbscam.ico")
-    if icon.exists():
-        show_toast("Test with Icon", "This should have an icon", icon)
-    else:
-        print(f"  Icon not found: {icon.absolute()}")
-    
-    print("\n" + "="*70)
-    print("ALL TESTS COMPLETED")
-    print("="*70 + "\n")

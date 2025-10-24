@@ -18,17 +18,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 import time
+import config
+import screenshot_gui
 
-try:
-    from . import config
-    from . import screenshot_gui
-except ImportError:
-    import config
-    try:
-        import screenshot_gui
-    except ImportError:
-        screenshot_gui = None
-        logging.warning("screenshot_gui module not found - screenshot feature disabled")
 
 try:
     import pandas as pd
