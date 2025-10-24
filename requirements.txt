@@ -1,0 +1,25 @@
+# ============================================================================
+# GibbsCAM Processor - Python Dependencies
+# ============================================================================
+# Install these exact versions in your virtual environment:
+#   pip install -r requirements.txt
+#
+# This locks dependencies to tested versions for long-term stability
+# ============================================================================
+
+# Core dependencies
+pywin32==306
+psutil==5.9.8
+pandas==2.2.0
+openpyxl==3.1.2
+
+# Toast notifications (Windows 10/11)
+windows-toasts==1.0.0
+
+# Build tool (only needed for creating executable)
+pyinstaller==6.3.0
+
+# ============================================================================
+# Optional: Uncomment if you want winotify as fallback
+# winotify==1.1.0
+# ============================================================================
